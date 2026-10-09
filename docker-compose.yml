@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: life_river
+      POSTGRES_PASSWORD: life_river
+      POSTGRES_DB: life_river
+    ports:
+      - "55432:5432"
+    volumes:
+      - life_river_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U life_river -d life_river"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  life_river_postgres:
