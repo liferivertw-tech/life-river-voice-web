@@ -360,9 +360,19 @@ export default function Home() {
     void sendText(text.trim());
   }
 
+  const interactionStatus = pending
+    ? "小河正在思考，請稍候。"
+    : listening
+      ? "正在聆聽，說完後請稍候兩秒，或按停止聆聽。"
+      : wakeMode
+        ? (wakeHeard ? "已聽到小河，請接著說出問題。" : "喚醒模式已開啟，請先說小河。")
+        : playingMessageId
+          ? "正在播放小河的回答。"
+          : "可以輸入文字，或按麥克風開始說話。";
+
   return <main>
-    <button className="history-toggle" type="button" onClick={() => setHistoryOpen((open) => !open)} aria-label="開啟對話紀錄">☰ 對話紀錄</button>
-    <aside className={`history-panel ${historyOpen ? "open" : ""}`} aria-label="對話紀錄">
+    <button className="history-toggle" type="button" onClick={() => setHistoryOpen((open) => !open)} aria-label="開啟對話紀錄" aria-expanded={historyOpen} aria-controls="conversation-history">☰ 對話紀錄</button>
+    <aside id="conversation-history" className={`history-panel ${historyOpen ? "open" : ""}`} aria-label="對話紀錄" aria-hidden={!historyOpen}>
       <div className="history-heading"><strong>對話紀錄</strong><button type="button" onClick={() => setHistoryOpen(false)} aria-label="關閉對話紀錄">×</button></div>
       <button className="new-conversation" type="button" onClick={startNewConversation}>＋ 新對話</button>
       <div className="conversation-list">
@@ -370,20 +380,26 @@ export default function Home() {
       </div>
     </aside>
     {historyOpen && <button className="history-backdrop" type="button" onClick={() => setHistoryOpen(false)} aria-label="關閉對話紀錄" />}
-    <section className="chat">
+    <section className="chat" aria-label="與小河對話">
       <header><span className="river">〰</span><div><h1>小河</h1><p>Life River Voice · 可選人物語音</p></div><div className="header-actions"><label className="voice-select"><span>語音來源</span><select value={voiceProvider} onChange={(event) => setVoiceProvider(event.target.value as "openai" | "browser")}><option value="openai">OpenAI 自然語音</option><option value="browser">Google／瀏覽器語音</option></select></label><label className="voice-select"><span>人物聲音</span>{voiceProvider === "openai" ? <select value={openAiVoice} onChange={(event) => setOpenAiVoice(event.target.value)}><option value="marin">Marin・溫暖自然</option><option value="cedar">Cedar・沉穩柔和</option><option value="coral">Coral・清亮親切</option><option value="nova">Nova・活潑明亮</option><option value="onyx">Onyx・低沉穩重</option><option value="sage">Sage・從容中性</option><option value="shimmer">Shimmer・柔和清晰</option><option value="alloy">Alloy・自然中性</option></select> : <select value={browserVoice} onChange={(event) => setBrowserVoice(event.target.value)}>{browserVoices.length === 0 ? <option value="">系統中文預設</option> : browserVoices.map((voice) => <option value={voice.name} key={`${voice.name}-${voice.lang}`}>{voice.name}（{voice.lang}）</option>)}</select>}</label>{speechSupported && <button className={`wake-toggle ${wakeMode ? "active" : ""}`} type="button" onClick={wakeMode ? stopWakeListening : startWakeListening} disabled={pending || listening} aria-label={wakeMode ? "停止喚醒模式" : "啟動小河喚醒詞"} title={wakeMode ? "停止喚醒模式" : "啟動小河喚醒詞"}>{wakeMode ? (wakeHeard ? "請說問題…" : "等待小河…") : "小河喚醒"}</button>}{ttsSupported && <button className={`voice-toggle ${voiceEnabled ? "enabled" : ""}`} type="button" onClick={toggleVoice} aria-label={voiceEnabled ? "關閉語音回覆" : "開啟語音回覆"} title={voiceEnabled ? "關閉語音回覆" : "開啟語音回覆"}>{voiceEnabled ? "🔊" : "🔇"}</button>}</div></header>
-      <div className="messages" aria-live="polite">
+      <div className={`interaction-status ${pending || listening || wakeMode || playingMessageId ? "active" : ""}`} role="status" aria-live="polite">
+        <span className="status-dot" aria-hidden="true" />
+        {interactionStatus}
+      </div>
+      <div className="messages" aria-live="polite" aria-busy={pending}>
         {messages.length === 0 && <div className="welcome"><h2>嗨，我是小河。</h2><p>先從文字開始聊聊吧。語音、工具與記憶會沿著這條河逐步加入。</p></div>}
         {messages.map((message) => <div className={`message ${message.role}`} key={message.id}><span>{message.role === "user" ? "你" : "小河"}</span><div className="message-row"><p>{message.content}</p>{message.role === "assistant" && <button className={`stop-speech ${playingMessageId === message.id ? "playing" : ""}`} type="button" onClick={() => playingMessageId === message.id ? stopSpeech() : void speak(message.content, message.id)} aria-label={playingMessageId === message.id ? "停止播放這段回答" : "播放這段回答"} title={playingMessageId === message.id ? "停止播放" : "播放這段回答"}>{playingMessageId === message.id ? "■" : "▶"}</button>}</div></div>)}
         {pending && <div className="message assistant"><span>小河</span><p className="thinking">正在想…</p></div>}
       </div>
-      <form onSubmit={submit}>
-        <textarea value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
+      <form onSubmit={submit} aria-label="傳送訊息">
+        <label className="sr-only" htmlFor="message-input">輸入給小河的訊息</label>
+        <textarea id="message-input" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
-        }} placeholder="和小河說點什麼…" rows={2} maxLength={10000} disabled={pending} />
+        }} placeholder="和小河說點什麼…" rows={2} maxLength={10000} disabled={pending} aria-describedby="interaction-help" />
         {speechSupported && <button className={`mic ${listening ? "listening" : ""}`} type="button" onClick={listening ? stopListening : startListening} disabled={pending || wakeMode} aria-label={listening ? "停止聆聽" : "使用語音輸入"} title={listening ? "停止聆聽" : "語音輸入"}>{listening ? "■" : "🎙"}</button>}
         <button className="send" type="submit" disabled={!text.trim() || pending} aria-label="傳送">↑</button>
       </form>
+      <p id="interaction-help" className="interaction-help">按 Enter 傳送，Shift + Enter 換行</p>
       {error && <p className="error" role="alert">{error}</p>}
     </section>
   </main>;
